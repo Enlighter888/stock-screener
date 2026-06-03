@@ -1,0 +1,23 @@
+name: Build Windows .exe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - run: pip install flask requests pyinstaller
+
+      - run: pyinstaller --onefile --name stock-screener --add-data "templates;templates" --distpath . app.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stock-screener-windows
+          path: stock-screener.exe

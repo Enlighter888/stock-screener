@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龙头二波起爆 - 选股器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#0f1923;color:#e0e0e0;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a2a3a,#0f1923);padding:24px 0;border-bottom:1px solid #2a3a4a;text-align:center}
+.header h1{font-size:24px;color:#ffd700;letter-spacing:2px}
+.header p{font-size:13px;color:#8899aa;margin-top:6px}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+.panel{background:#1a2a3a;border-radius:8px;padding:20px;margin-bottom:16px;border:1px solid #2a3a4a}
+.panel h3{font-size:14px;color:#ffd700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.toggle-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.toggle-row label{font-size:13px;cursor:pointer;flex:1}
+.switch{position:relative;width:36px;height:20px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#3a4a5a;border-radius:10px;transition:.3s}
+.switch .slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#889;border-radius:50%;transition:.3s}
+.switch input:checked+.slider{background:#ffd700}
+.switch input:checked+.slider:before{transform:translateX(16px);background:#0f1923}
+.cond-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.cond-card{background:#0f1923;border:1px solid #2a3a4a;border-radius:6px;padding:12px;transition:.2s}
+.cond-card.disabled{opacity:.4}
+.cond-card .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cond-card .name{font-size:13px;font-weight:600}
+.cond-card .ctrl{display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap}
+.cond-card .ctrl select,.cond-card .ctrl input{background:#1a2a3a;border:1px solid #2a3a4a;border-radius:4px;color:#e0e0e0;padding:4px 6px;font-size:12px;width:70px}
+.cond-card .ctrl select{width:55px}
+.cond-card .unit{color:#667;font-size:11px}
+.formula-area{width:100%;min-height:70px;background:#0f1923;border:1px solid #2a3a4a;border-radius:6px;color:#e0e0e0;padding:10px;font-size:13px;font-family:monospace;resize:vertical;margin-top:8px}
+.formula-area:focus{border-color:#ffd700;outline:none}
+.inp{width:100%;background:#0f1923;border:1px solid #2a3a4a;border-radius:4px;color:#e0e0e0;padding:6px 8px;font-size:13px}
+.inp:focus{border-color:#ffd700;outline:none}
+.btn-group{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.btn{padding:10px 28px;border:none;border-radius:6px;font-size:14px;cursor:pointer;transition:all .2s;font-weight:600}
+.btn-primary{background:#ffd700;color:#0f1923}
+.btn-primary:hover{background:#ffe44d;transform:translateY(-1px)}
+.btn-primary:disabled{background:#555;cursor:not-allowed;transform:none}
+.btn-secondary{background:#2a3a4a;color:#e0e0e0}
+.btn-secondary:hover{background:#3a4a5a}
+.btn-sm{padding:6px 14px;font-size:12px}
+.status{margin:12px 0;font-size:13px;color:#8899aa;line-height:1.6}
+.status .hl{color:#ffd700;font-weight:600}
+.status .err{color:#ff6b6b}
+.progress-bar{height:4px;background:#2a3a4a;border-radius:2px;margin:8px 0;overflow:hidden;display:none}
+.progress-bar .fill{height:100%;background:linear-gradient(90deg,#ffd700,#ff8c00);border-radius:2px;transition:width .3s;width:0}
+.progress-info{display:none;align-items:center;gap:12px;margin:8px 0;font-size:13px}
+.progress-info.show{display:flex}
+.progress-info .spin{width:14px;height:14px;border:2px solid #3a4a5a;border-top-color:#ffd700;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-info .pnum{color:#ffd700;font-weight:600}
+.progress-info .pphase{color:#8899aa}
+
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;margin:12px 0;flex-wrap:wrap}
+.toolbar .search-wrap{position:relative;flex:1;min-width:140px}
+.toolbar .search-wrap input{width:100%;background:#0f1923;border:1px solid #2a3a4a;border-radius:4px;color:#e0e0e0;padding:6px 10px;font-size:13px;padding-left:28px}
+.toolbar .search-wrap input:focus{border-color:#ffd700;outline:none}
+.toolbar .search-wrap .icon{position:absolute;left:8px;top:7px;color:#667;font-size:14px}
+.toolbar .count{font-size:13px;color:#8899aa}
+.toolbar .count .hl{color:#ffd700}
+.table-wrap{overflow-x:auto;border-radius:8px;border:1px solid #2a3a4a}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#1a2a3a;padding:8px 10px;text-align:left;font-weight:600;color:#ffd700;border-bottom:2px solid #2a3a4a;white-space:nowrap;position:sticky;top:0;cursor:pointer;user-select:none}
+th:hover{background:#2a3a4a}
+th .sort-arrow{color:#667;margin-left:4px;font-size:10px;display:inline-block;width:10px;text-align:center}
+th .sort-arrow.active{color:#ffd700}
+td{padding:7px 10px;white-space:nowrap;border-bottom:1px solid #1a2a3a}
+tr:hover td{background:#1a2a3a22}
+.tr{text-align:right}
+.up{color:#ff6b6b}
+.down{color:#4ecdc4}
+.gold{color:#ffd700}
+.pass{color:#4ecdc4}
+.helper{font-size:12px;color:#667;margin-top:6px}
+.helper kbd{background:#1a2a3a;border:1px solid #2a3a4a;border-radius:3px;padding:1px 5px;font-size:11px}
+.empty{text-align:center;padding:60px 20px;color:#8899aa}
+.empty .icon{font-size:48px;margin-bottom:12px}
+.tabs{display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid #2a3a4a}
+.tab{padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:#8899aa;transition:.2s}
+.tab.active{color:#ffd700;border-bottom-color:#ffd700}
+.tab:hover{color:#e0e0e0}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.group-header{font-size:13px;color:#ffd700;padding:12px 0 6px;border-bottom:1px solid #2a3a4a;margin-top:8px;display:flex;align-items:center;gap:8px}
+.group-header .badge{font-size:10px;background:#ffd70022;color:#ffd700;padding:1px 7px;border-radius:8px}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.presets .btn-preset{padding:5px 12px;border:1px solid #2a3a4a;border-radius:14px;background:transparent;color:#8899aa;font-size:12px;cursor:pointer;transition:.2s}
+.presets .btn-preset:hover{border-color:#ffd700;color:#ffd700;background:#ffd70011}
+.spark{width:60px;height:24px;vertical-align:middle;cursor:pointer}
+.spark:hover{opacity:.8}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:1000;display:none;justify-content:center;align-items:center}
+.modal-overlay.show{display:flex}
+.modal-panel{background:#1a2a3a;border:1px solid #2a3a4a;border-radius:10px;max-width:620px;width:90%;max-height:80vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.modal-close{position:absolute;top:12px;right:16px;font-size:22px;color:#667;cursor:pointer;line-height:1}
+.modal-close:hover{color:#ffd700}
+.modal-title{font-size:18px;color:#ffd700;margin-bottom:6px}
+.modal-sub{font-size:12px;color:#8899aa;margin-bottom:16px}
+.modal-section{margin-bottom:14px}
+.modal-section h4{font-size:13px;color:#8899aa;border-bottom:1px solid #2a3a4a;padding-bottom:4px;margin-bottom:8px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px}
+.modal-grid .item{display:flex;justify-content:space-between;padding:3px 0}
+.modal-grid .item .val{font-weight:600}
+.modal-grid .item .val.up{color:#ff6b6b}
+.modal-grid .item .val.down{color:#4ecdc4}
+.modal-grid .item .val.pass{color:#4ecdc4}
+.modal-grid .item .val.fail{color:#667}
+.modal-kline{margin:8px 0;text-align:center;background:#0f1923;border-radius:6px;padding:8px}
+.modal-kline canvas{width:100%;height:48px}
+@media(max-width:768px){.cond-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🐉 龙头二波起爆</h1>
+  <p>新浪实时数据 ｜ 条件全可配 ｜ 自定义公式 ｜ 异步扫描</p>
+</div>
+
+<div class="container">
+
+<div class="panel">
+  <h3>⚙ 选股参数</h3>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('basic')">基础过滤</div>
+    <div class="tab" onclick="switchTab('conds')">条件配置</div>
+    <div class="tab" onclick="switchTab('reject')">⛔ 剔除条件</div>
+    <div class="tab" onclick="switchTab('formula')">自定义公式</div>
+  </div>
+
+  <div id="tab-basic" class="tab-content active">
+    <div class="toggle-row">
+      <label class="switch"><input type="checkbox" id="ex_st" checked><span class="slider"></span></label>
+      <label for="ex_st">排除ST股</label>
+    </div>
+    <div class="toggle-row">
+      <label class="switch"><input type="checkbox" id="ex_cyb" checked><span class="slider"></span></label>
+      <label for="ex_cyb">排除创业板/科创板</label>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+      <div><label style="font-size:12px;color:#8899aa">最低价格(元)</label><input type="number" id="min_price" value="0" class="inp"></div>
+      <div><label style="font-size:12px;color:#8899aa">最低成交额(亿)</label><input type="number" id="min_amount" value="2" class="inp" step="0.1"></div>
+      <div><label style="font-size:12px;color:#8899aa">最小总市值(亿)</label><input type="number" id="min_mv" value="30" class="inp" step="1"></div>
+      <div><label style="font-size:12px;color:#8899aa">最大总市值(亿)</label><input type="number" id="max_mv" value="150" class="inp" step="1"></div>
+    </div>
+    <div style="font-size:11px;color:#667;margin-top:6px">成交额/市值以<strong>亿</strong>为单位。例如最小值30亿、最大值150亿。</div>
+  </div>
+
+  <div id="tab-conds" class="tab-content">
+    <div class="presets">
+      <button class="btn-preset" onclick="applyPreset('龙头二波')">🐉 龙头二波</button>
+      <button class="btn-preset" onclick="applyPreset('均线多头')">📈 均线多头</button>
+      <button class="btn-preset" onclick="applyPreset('超跌反弹')">🔄 超跌反弹</button>
+      <button class="btn-preset" onclick="applyPreset('突破加速')">🚀 突破加速</button>
+      <button class="btn-preset" onclick="applyPreset('所有条件关')">⊘ 全关</button>
+    </div>
+    <div class="cond-grid" id="condGrid"></div>
+    <div class="helper" style="margin-top:8px">每个条件可独立开关。预设按钮一键配置经典组合。</div>
+  </div>
+
+  <div id="tab-reject" class="tab-content">
+    <div class="presets">
+      <button class="btn-preset" onclick="applyPreset('龙头二波')">🔗 同步当前预设</button>
+    </div>
+    <div class="cond-grid" id="rejectGrid"></div>
+    <div class="helper" style="margin-top:8px">
+      ⛔ <b>一票否决制</b> — 任意一项触发即淘汰，无视选股条件是否通过
+      <br>⚠️ 以下条件<b>缺少数据源</b>暂不可实现（需接入财务/L2数据）：
+      <kbd>主力净流出</kbd> <kbd>换手率<2%</kbd> <kbd>扣非净利润下滑</kbd>
+      <kbd>资产负债率>65%</kbd> <kbd>商誉高</kbd> <kbd>大额质押</kbd> <kbd>频繁减持</kbd> <kbd>监管问询</kbd>
+    </div>
+  </div>
+
+  <div id="tab-formula" class="tab-content">
+    <div class="toggle-row">
+      <label class="switch"><input type="checkbox" id="use_formula"><span class="slider"></span></label>
+      <label for="use_formula">启用自定义公式（开启后忽略上方条件配置）</label>
+    </div>
+    <textarea class="formula-area" id="customFormula" placeholder="zt_count >= 2 AND pullback >= 10 AND pullback <= 40 AND close_pct >= 3 AND kd_gold == True"></textarea>
+    <div class="helper">
+      字段: <kbd>zt_count</kbd> <kbd>pullback</kbd> <kbd>vol_ratio</kbd> <kbd>close_pct</kbd>
+      <kbd>rsi6</kbd> <kbd>amplitude</kbd> <kbd>avg_ampl20</kbd> <kbd>up_days</kbd> <kbd>consecutive_zt</kbd>
+      <kbd>k</kbd> <kbd>d</kbd> <kbd>j</kbd> <kbd>ma5</kbd> <kbd>ma10</kbd> <kbd>ma20</kbd> <kbd>ma60</kbd>
+      <kbd>vwap20</kbd> <kbd>vwap60</kbd> <kbd>gain_3d</kbd> <kbd>bb_width_ratio</kbd> <kbd>price_pos</kbd>
+      <br>布尔: <kbd>kd_gold</kbd> <kbd>macd_bull</kbd> <kbd>ma_bull</kbd> <kbd>one_line_3ma</kbd>
+      <kbd>rsi_gold</kbd> <kbd>break_bb_upper</kbd> <kbd>vol_breakout</kbd> <kbd>yang_bao_yin</kbd>
+      <kbd>chip_concentrated</kbd> <kbd>vol_ladder</kbd> <kbd>price_creep</kbd> <kbd>ma_convergence</kbd>
+      &nbsp; 运算符: <kbd>&gt;=</kbd> <kbd>&lt;=</kbd> <kbd>==</kbd> <kbd>AND</kbd> <kbd>OR</kbd> <kbd>NOT</kbd>
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btnScan" onclick="startScan()">🚀 开始选股</button>
+    <button class="btn btn-secondary btn-sm" onclick="resetAll()">↺ 恢复默认</button>
+    <button class="btn btn-secondary btn-sm" onclick="disableAll()">⊘ 全关</button>
+  </div>
+</div>
+
+<div class="status" id="status">点击「开始选股」扫描全市场（数据源：新浪财经）</div>
+<div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+<div class="progress-info" id="progressInfo">
+  <div class="spin"></div>
+  <span class="pphase" id="progressPhase">正在扫描…</span>
+  <span><span class="pnum" id="progressDone">0</span> / <span class="pnum" id="progressTotal">0</span></span>
+</div>
+
+<div id="resultArea"><div class="empty"><div class="icon">📊</div><p>等待选股…</p></div></div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeDetail()">
+  <div class="modal-panel">
+    <div class="modal-close" onclick="closeDetail()">✕</div>
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-sub" id="modalSub"></div>
+    <div class="modal-kline"><canvas id="modalKlineCanvas" height="48"></canvas></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+// == 条件定义 ==
+const COND_GROUPS = [
+  { name: '🐉 龙头二波核心', fields: [
+    {id:"zt_count", label:"20天涨停次数", op:">=", val:2, unit:"次"},
+    {id:"pullback_min", label:"回落幅度下限", field:"pullback", op:">=", val:12, unit:"%"},
+    {id:"pullback_max", label:"回落幅度上限", field:"pullback", op:"<=", val:35, unit:"%"},
+    {id:"vol_ratio", label:"缩量比(MA3/20日最高量)", op:"<=", val:0.55, unit:""},
+    {id:"close_pct", label:"当日涨幅", op:">=", val:3.0, unit:"%"},
+  ]},
+  { name: '📈 均线系', fields: [
+    {id:"ma_bull", label:"MA多头排列(5>10>20>60)", op:"bool", val:true},
+    {id:"one_line_3ma", label:"一阳穿三线", op:"bool", val:true},
+    {id:"above_ma60", label:"站上MA60", op:"bool", val:true},
+    {id:"ma5_gold_ma10", label:"MA5金叉MA10", op:"bool", val:true},
+    {id:"ma_convergence", label:"均线粘合(5/10/20间距<2%)", op:"bool", val:true},
+    {id:"ma_turning", label:"均线刚拐头+多头排列", op:"bool", val:true},
+  ]},
+  { name: '🔄 摆动系', fields: [
+    {id:"kd_gold", label:"KD金叉", op:"bool", val:true},
+    {id:"macd_bull", label:"MACD柱翻红增长", op:"bool", val:true},
+    {id:"ma20_up", label:"MA20斜率向上", op:"bool", val:true},
+    {id:"rsi_gold", label:"RSI6金叉RSI12", op:"bool", val:true},
+    {id:"rsi6", label:"RSI(6)", op:"<=", val:25, unit:""},
+  ]},
+  { name: '📊 布林+筹码', fields: [
+    {id:"break_bb_upper", label:"突破布林上轨", op:"bool", val:true},
+    {id:"below_bb_lower", label:"跌破布林下轨", op:"bool", val:true},
+    {id:"chip_concentrated", label:"筹码集中(BB宽/价<15%)", op:"bool", val:true},
+    {id:"chip_cost_above", label:"主力成本≥现价", op:"bool", val:true},
+    {id:"chip_low_overhead", label:"上方套牢<10%", op:"bool", val:true},
+    {id:"chip_stable", label:"筹码不松动(20日稳定)", op:"bool", val:true},
+  ]},
+  { name: '📈 量价精化', fields: [
+    {id:"vol_ladder", label:"量价阶梯(3日递进)", op:"bool", val:true},
+    {id:"price_creep", label:"小阳慢推(3日涨3-8%)", op:"bool", val:true},
+    {id:"vol_moderate", label:"不放爆量(≤2.5倍MA5)", op:"bool", val:true},
+    {id:"vol_breakout", label:"放量突破(涨3%+量>2倍MA5)", op:"bool", val:true},
+  ]},
+  { name: '📉 K线形态', fields: [
+    {id:"doji", label:"十字星", op:"bool", val:true},
+    {id:"hammer", label:"锤子线", op:"bool", val:true},
+    {id:"yang_bao_yin", label:"阳包阴", op:"bool", val:true},
+    {id:"gap_up", label:"向上跳空缺口", op:"bool", val:true},
+    {id:"new_high_20", label:"创20日新高", op:"bool", val:true},
+  ]},
+];
+
+const REJECT_DEFS = [
+  {id:"reject_bearish", label:"中期空头趋势", desc:"收盘价<MA20 且 <MA60"},
+  {id:"reject_weaving", label:"织布机/僵尸", desc:"近20日日均振幅<2%"},
+  {id:"reject_wick", label:"长上影诱多", desc:"上影线>实体2倍且>3%"},
+  {id:"reject_lower_high", label:"高点下移", desc:"近30日高点<前30日高点×0.95"},
+  {id:"reject_more_down", label:"阴跌特征", desc:"20天中12天以上下跌"},
+  {id:"reject_inactive", label:"活跌度不足", desc:"20日日均振幅≤1.5%(僵尸)"},
+];
+
+// 经典组合预设
+const PRESETS = {
+  '龙头二波': {
+    // 涨停>=2 + 回落12-35% + 缩量 + 涨幅≥3% + MACD/KD/MA共振
+    // 龙头股波动大, 布林带宽——不额外加筹码限制
+    conds: {zt_count:2, pullback_min:12, pullback_max:35, vol_ratio:0.55, close_pct:3,
+            kd_gold:true, macd_bull:true, ma20_up:true},
+    rejects: {reject_bearish:true, reject_weaving:true, reject_wick:true},
+  },
+  '均线多头': {
+    // 多头排列 + MA60上 + 金叉 + MA20↑ + 筹码集中 + 量价稳
+    conds: {ma_bull:true, above_ma60:true, ma5_gold_ma10:true, ma20_up:true,
+            chip_concentrated:true, vol_moderate:true, close_pct:0},
+    rejects: {reject_bearish:true, reject_weaving:true, reject_more_down:true},
+  },
+  '超跌反弹': {
+    // RSI超卖 + 布林下轨外 + 筹码稳定 + 成本安全垫 + 量不爆
+    // (K线形态可手动加, AND模式难以同时命中锤子+阳包阴)
+    conds: {rsi6:25, below_bb_lower:true, chip_stable:true,
+            chip_cost_above:true, vol_moderate:true, close_pct:0},
+    rejects: {reject_weaving:true, reject_more_down:true},
+  },
+  '突破加速': {
+    // 突破布林上轨 + 放量突破(涨3%+量>2倍MA5)
+    // 突破时布林带宽(无筹码集中)——与放量突破天然矛盾
+    conds: {break_bb_upper:true, vol_breakout:true, close_pct:3},
+    rejects: {reject_bearish:true, reject_weaving:true, reject_lower_high:true},
+  },
+  '所有条件关': {
+    conds: {}, rejects: {},
+  },
+};
+
+let lastResults = [];
+let detailData = [];
+let sortKey = null, sortAsc = true;
+
+// == 应用预设 ==
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  // 先全关
+  COND_GROUPS.forEach(g => g.fields.forEach(f => { f.enabled = false; }));
+  REJECT_DEFS.forEach(r => { r.enabled = false; });
+  // 开启预设中的条件
+  COND_GROUPS.forEach(g => g.fields.forEach(f => {
+    if (f.id in p.conds) {
+      f.enabled = true;
+      const v = p.conds[f.id];
+      if (typeof v === 'boolean') { f.op = 'bool'; f.val = true; }
+      else { f.val = v; /* 保留 COND_GROUPS 中定义的默认 op */ }
+    }
+  }));
+  REJECT_DEFS.forEach(r => {
+    if (r.id in p.rejects) r.enabled = p.rejects[r.id];
+  });
+  renderAllConds();
+  document.querySelector('.tab[onclick*="conds"]')?.click();
+}
+
+function renderAllConds() {
+  renderConds();
+  renderRejects();
+}
+
+function renderRejects() {
+  const grid = document.getElementById('rejectGrid');
+  if (!grid) return;
+  grid.innerHTML = REJECT_DEFS.map((r, i) => {
+    const checked = r.enabled !== false;
+    return `<div class="cond-card ${checked?'':'disabled'}" data-rx="${i}">
+      <div class="head">
+        <span class="name">⛔ ${r.label}</span>
+        <label class="switch"><input type="checkbox" ${checked?'checked':''} onchange="toggleReject(${i})"><span class="slider"></span></label>
+      </div>
+      <div class="ctrl" style="color:#667;font-size:11px">${r.desc}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleReject(idx) {
+  const card = document.querySelector(`[data-rx="${idx}"]`);
+  if (!card) return;
+  const cb = card.querySelector('.switch input');
+  REJECT_DEFS[idx].enabled = cb.checked;
+  card.classList.toggle('disabled', !cb.checked);
+}
+
+let totalFieldIdx = 0;
+function flatIdx() { return totalFieldIdx++; }
+
+function getFieldById(id) {
+  for (const g of COND_GROUPS) {
+    for (const f of g.fields) {
+      if (f.id === id || (f.field && f.field === id)) return f;
+    }
+  }
+  return null;
+}
+
+function renderConds() {
+  const grid = document.getElementById('condGrid');
+  totalFieldIdx = 0;
+  let html = '';
+  for (const g of COND_GROUPS) {
+    html += `<div class="group-header">${g.name} <span class="badge">${g.fields.length}</span></div>`;
+    for (const f of g.fields) {
+      const i = flatIdx();
+      const checked = f.enabled !== false;
+      if (f.op === 'bool') {
+        html += `<div class="cond-card ${checked?'':'disabled'}" data-idx="${i}">
+          <div class="head">
+            <span class="name">${f.label}</span>
+            <label class="switch"><input type="checkbox" ${checked?'checked':''} onchange="toggleCond(${i})"><span class="slider"></span></label>
+          </div>
+          <div class="ctrl"><span style="color:#4ecdc4;font-size:13px">${checked?'✅ 启用':'❌ 关闭'}</span></div>
+        </div>`;
+      } else {
+        html += `<div class="cond-card ${checked?'':'disabled'}" data-idx="${i}">
+          <div class="head">
+            <span class="name">${f.label}</span>
+            <label class="switch"><input type="checkbox" ${checked?'checked':''} onchange="toggleCond(${i})"><span class="slider"></span></label>
+          </div>
+          <div class="ctrl">
+            <select id="cond_op_${i}">
+              <option value=">=" ${f.op==='>='?'selected':''}>≥</option>
+              <option value="<=" ${f.op==='<='?'selected':''}>≤</option>
+              <option value=">" ${f.op==='>'?'selected':''}>></option>
+              <option value="<" ${f.op==='<'?'selected':''}>&lt;</option>
+            </select>
+            <input type="number" step="any" value="${f.val}" id="cond_val_${i}" style="width:60px">
+            <span class="unit">${f.unit}</span>
+          </div>
+        </div>`;
+      }
+    }
+  }
+  grid.innerHTML = html;
+}
+renderAllConds();
+
+function toggleCond(idx) {
+  const card = document.querySelector(`[data-idx="${idx}"]`);
+  if (!card) return;
+  const cb = card.querySelector('.switch input');
+  // 找到该索引对应的条件
+  let fi = 0;
+  for (const g of COND_GROUPS) {
+    for (const f of g.fields) {
+      if (fi === idx) {
+        f.enabled = cb.checked;
+        card.classList.toggle('disabled', !cb.checked);
+        if (f.op === 'bool') {
+          const span = card.querySelector('.ctrl span');
+          if (span) span.textContent = cb.checked ? '✅ 启用' : '❌ 关闭';
+        }
+        return;
+      }
+      fi++;
+    }
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  const tabs = ['basic','conds','reject','formula'];
+  const idx = tabs.indexOf(name);
+  if (idx >= 0) {
+    document.querySelectorAll('.tab')[idx].classList.add('active');
+    document.getElementById('tab-'+name).classList.add('active');
+  }
+}
+
+function getParams() {
+  const basic = {
+    ex_st: document.getElementById('ex_st').checked,
+    ex_cyb_kcb: document.getElementById('ex_cyb').checked,
+    min_price: parseFloat(document.getElementById('min_price').value) || 0,
+    min_amount: (parseFloat(document.getElementById('min_amount').value) || 0) * 1e8,
+    min_mv: (parseFloat(document.getElementById('min_mv').value) || 0) * 1e8,
+    max_mv: (parseFloat(document.getElementById('max_mv').value) || 0) * 1e8,
+  };
+  // 从分组构建条件列表
+  let idx = 0;
+  const conditions = [];
+  for (const g of COND_GROUPS) {
+    for (const f of g.fields) {
+      const card = document.querySelector(`[data-idx="${idx}"]`);
+      const enabled = card ? card.querySelector('.switch input').checked : f.enabled !== false;
+      const fieldName = f.field || f.id;
+      conditions.push({
+        field: fieldName,
+        op: f.op === 'bool' ? 'bool' : (document.getElementById('cond_op_'+idx)?.value || f.op),
+        value: f.op === 'bool' ? true : parseFloat(document.getElementById('cond_val_'+idx)?.value || f.val),
+        enabled: enabled,
+      });
+      idx++;
+    }
+  }
+  // 剔除条件
+  const reject_conditions = REJECT_DEFS.map((r, i) => {
+    const card = document.querySelector(`[data-rx="${i}"]`);
+    const enabled = card ? card.querySelector('.switch input').checked : r.enabled !== false;
+    return { field: r.id, op: 'bool', value: true, enabled: enabled };
+  });
+  const useFormula = document.getElementById('use_formula').checked;
+  const customFormula = useFormula ? document.getElementById('customFormula').value : '';
+  return { basic, conditions, reject_conditions, custom_formula: customFormula };
+}
+
+function resetAll() {
+  document.getElementById('ex_st').checked = true;
+  document.getElementById('ex_cyb').checked = true;
+  document.getElementById('min_price').value = 0;
+  document.getElementById('min_amount').value = 2;
+  document.getElementById('min_mv').value = 30;
+  document.getElementById('max_mv').value = 150;
+  document.getElementById('use_formula').checked = false;
+  document.getElementById('customFormula').value = '';
+  COND_GROUPS.forEach(g => g.fields.forEach(f => { f.enabled = true; }));
+  REJECT_DEFS.forEach(r => { r.enabled = false; });
+  renderAllConds();
+}
+
+function disableAll() {
+  COND_GROUPS.forEach(g => g.fields.forEach(f => { f.enabled = false; }));
+  renderAllConds();
+}
+
+function fmt(n, d=2) { return (n===null||n===undefined) ? '-' : Number(n).toFixed(d); }
+function fmtM(v) { return v ? (v/1e8).toFixed(1)+'亿' : '-'; }
+
+// == 异步扫描 ==
+async function startScan() {
+  const btn = document.getElementById('btnScan');
+  const status = document.getElementById('status');
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  const pInfo = document.getElementById('progressInfo');
+  const pPhase = document.getElementById('progressPhase');
+  const pDone = document.getElementById('progressDone');
+  const pTotal = document.getElementById('progressTotal');
+  const area = document.getElementById('resultArea');
+
+  btn.disabled = true; btn.textContent = '⏳ 扫描中…';
+  bar.style.display = 'block'; fill.style.width = '0%';
+  pInfo.classList.add('show');
+  pPhase.textContent = '启动中…';
+  pDone.textContent = '0'; pTotal.textContent = '0';
+  status.innerHTML = '正在启动扫描…';
+  area.innerHTML = '';
+
+  lastResults = [];
+
+  try {
+    // 1. 发起扫描
+    const resp = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(getParams()),
+    });
+    const data = await resp.json();
+    if (!data.success) {
+      status.innerHTML = '<span class="err">❌ '+data.error+'</span>';
+      return;
+    }
+
+    const sid = data.scan_id;
+    status.innerHTML = '扫描已启动，等待执行…';
+
+    // 2. 轮询进度
+    let finished = false;
+    while (!finished) {
+      await new Promise(r => setTimeout(r, 600));
+      const pr = await fetch('/api/scan-progress/'+sid);
+      const p = await pr.json();
+      if (!p.success) {
+        status.innerHTML = '<span class="err">❌ 进度查询失败</span>';
+        break;
+      }
+      const done = p.done || 0, total = p.total || 0;
+      pDone.textContent = done;
+      pTotal.textContent = total;
+      pPhase.textContent = p.phase || '扫描中…';
+      if (total > 0) fill.style.width = Math.min(100, (done/total*100)) + '%';
+
+      if (p.status === 'done') {
+        finished = true;
+        fill.style.width = '100%';
+        pInfo.classList.remove('show');
+        const result = p.result;
+        if (result) {
+          lastResults = result.results || [];
+          detailData = lastResults;
+          if (lastResults.length === 0) {
+            status.innerHTML = '✅ 全市场 <span class="hl">'+(result.total||0)+'</span> 只 → 基础通过 <span class="hl">'+(result.basic_count||0)+'</span> 只 → 选出 <span class="hl">0</span> 只（'+(result.time||'?')+'s）';
+            area.innerHTML = '<div class="empty"><div class="icon">🔍</div><p>当前参数下没有符合条件的股票</p><p style="font-size:12px;margin-top:8px">试试：关闭部分条件 / 放宽数值 / 切换到自定义公式只写关键条件</p></div>';
+          } else {
+            status.innerHTML = '✅ 全市场 <span class="hl">'+(result.total||0)+'</span> 只 → 基础通过 <span class="hl">'+(result.basic_count||0)+'</span> 只 → 选出 <span class="hl">'+lastResults.length+'</span> 只（'+(result.time||'?')+'s）';
+            sortKey = null;
+            renderResults(lastResults);
+          }
+        }
+      } else if (p.status === 'error') {
+        finished = true;
+        status.innerHTML = '<span class="err">❌ '+(p.error||'扫描出错')+'</span>';
+        pInfo.classList.remove('show');
+      }
+    }
+  } catch(e) {
+    status.innerHTML = '<span class="err">❌ 网络错误: '+e.message+'</span>';
+    pInfo.classList.remove('show');
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 开始选股';
+    setTimeout(() => bar.style.display = 'none', 1000);
+  }
+}
+
+// == 排序 ==
+function sortResults(key) {
+  if (sortKey === key) { sortAsc = !sortAsc; }
+  else { sortKey = key; sortAsc = key === 'code' || key === 'name'; }
+  const copy = [...lastResults];
+  copy.sort((a, b) => {
+    const va = a[key] ?? 0, vb = b[key] ?? 0;
+    if (typeof va === 'boolean') return sortAsc ? (va===vb?0:va?1:-1) : (va===vb?0:va?-1:1);
+    return sortAsc ? (va-vb) : (vb-va);
+  });
+  renderResults(copy);
+}
+
+function sortArrow(key) {
+  if (sortKey === key) return sortAsc ? '▲' : '▼';
+  return '';
+}
+
+// == 过滤 ==
+function filterResults() {
+  const q = document.getElementById('searchInput').value.trim().toUpperCase();
+  if (!q) { renderResults(lastResults); return; }
+  const filtered = lastResults.filter(r => r.code.includes(q) || r.name.toUpperCase().includes(q));
+  renderResults(filtered, true);
+}
+
+
+// == CSV ==
+function exportCSV() {
+  if (!lastResults.length) return;
+  const headers = ['代码','名称','现价','涨幅%','成交额','总市值','涨停','回落%','缩量比','RSI6','振幅%','连阳','连板','MA5','MA10','MA20','MA60','K','D','J','VWAP20','VWAP60','BB宽比','价位置%','3日涨%','均线间距','KD金叉','MACD','均线多头','一阳穿三','MA60上','MA5金叉','RSI金叉','布林上轨','布林下轨','放量突破','十字星','锤子线','阳包阴','跳空','20日新高','筹码集中','主力成本≥','套牢<10%','筹码稳','量价阶梯','不放爆量','小阳慢推','均线粘合','均线拐头','活跌度'];
+  let csv = '\uFEFF' + headers.join(',') + '\n';
+  for (const r of lastResults) {
+    csv += [r.code, r.name, r.price, r.close_pct, r.amount, r.total_mv, r.zt_count, r.pullback, r.vol_ratio, r.rsi6, r.amplitude, r.up_days, r.consecutive_zt, r.ma5, r.ma10, r.ma20, r.ma60, r.k, r.d, r.j, r.vwap20, r.vwap60, r.bb_width_ratio, r.price_pos, r.gain_3d, r.ma_spread, r.kd_gold, r.macd_bull, r.ma_bull, r.one_line_3ma, r.above_ma60, r.ma5_gold_ma10, r.rsi_gold, r.break_bb_upper, r.below_bb_lower, r.vol_breakout, r.doji, r.hammer, r.yang_bao_yin, r.gap_up, r.new_high_20, r.chip_concentrated, r.chip_cost_above, r.chip_low_overhead, r.chip_stable, r.vol_ladder, r.vol_moderate, r.price_creep, r.ma_convergence, r.ma_turning, r.active_volatility].join(',') + '\n';
+  }
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '龙头二波起爆_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// == 渲染 ==
+function renderResults(data, filtered=false) {
+  const area = document.getElementById('resultArea');
+  detailData = data; // 同步当前显示列表, 弹窗索引正确
+  const cnt = data.length;
+  const total = filtered ? lastResults.length : cnt;
+
+  let h = '<div class="toolbar">'+
+    '<div class="search-wrap"><span class="icon">🔍</span><input id="searchInput" placeholder="代码/名称" oninput="filterResults()"></div>'+
+    '<span class="count">显示 <span class="hl">'+cnt+'</span>'+(filtered?' / '+total:'')+' 只</span>'+
+    '<button class="btn btn-secondary btn-sm" onclick="exportCSV()">📥 CSV</button>'+
+    '</div>';
+
+  h += '<div class="table-wrap"><table><thead><tr>'+
+    '<th style="width:60px">走势</th>'+
+    '<th onclick="sortResults(\'code\')">代码<span class="sort-arrow '+(sortKey==='code'?'active':'')+'">'+sortArrow('code')+'</span></th>'+
+    '<th onclick="sortResults(\'name\')">名称<span class="sort-arrow '+(sortKey==='name'?'active':'')+'">'+sortArrow('name')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'price\')">现价<span class="sort-arrow '+(sortKey==='price'?'active':'')+'">'+sortArrow('price')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'close_pct\')">涨幅%<span class="sort-arrow '+(sortKey==='close_pct'?'active':'')+'">'+sortArrow('close_pct')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'amount\')">成交额<span class="sort-arrow '+(sortKey==='amount'?'active':'')+'">'+sortArrow('amount')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'total_mv\')">市值<span class="sort-arrow '+(sortKey==='total_mv'?'active':'')+'">'+sortArrow('total_mv')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'zt_count\')">涨停<span class="sort-arrow '+(sortKey==='zt_count'?'active':'')+'">'+sortArrow('zt_count')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'pullback\')">回落%<span class="sort-arrow '+(sortKey==='pullback'?'active':'')+'">'+sortArrow('pullback')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'vol_ratio\')">缩量比<span class="sort-arrow '+(sortKey==='vol_ratio'?'active':'')+'">'+sortArrow('vol_ratio')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'rsi6\')">RSI6<span class="sort-arrow '+(sortKey==='rsi6'?'active':'')+'">'+sortArrow('rsi6')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'amplitude\')">振幅%<span class="sort-arrow '+(sortKey==='amplitude'?'active':'')+'">'+sortArrow('amplitude')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'up_days\')">连阳<span class="sort-arrow '+(sortKey==='up_days'?'active':'')+'">'+sortArrow('up_days')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'consecutive_zt\')">连板<span class="sort-arrow '+(sortKey==='consecutive_zt'?'active':'')+'">'+sortArrow('consecutive_zt')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'k\')">K<span class="sort-arrow '+(sortKey==='k'?'active':'')+'">'+sortArrow('k')+'</span></th>'+
+    '<th class="tr" onclick="sortResults(\'d\')">D<span class="sort-arrow '+(sortKey==='d'?'active':'')+'">'+sortArrow('d')+'</span></th>'+
+    '<th onclick="sortResults(\'kd_gold\')">KD<span class="sort-arrow '+(sortKey==='kd_gold'?'active':'')+'">'+sortArrow('kd_gold')+'</span></th>'+
+    '<th onclick="sortResults(\'macd_bull\')">MACD<span class="sort-arrow '+(sortKey==='macd_bull'?'active':'')+'">'+sortArrow('macd_bull')+'</span></th>'+
+    '<th onclick="sortResults(\'ma_bull\')">均线<span class="sort-arrow '+(sortKey==='ma_bull'?'active':'')+'">'+sortArrow('ma_bull')+'</span></th>'+
+    '<th onclick="sortResults(\'vol_breakout\')">放量<span class="sort-arrow '+(sortKey==='vol_breakout'?'active':'')+'">'+sortArrow('vol_breakout')+'</span></th>'+
+    '<th onclick="sortResults(\'break_bb_upper\')">布林轨<span class="sort-arrow '+(sortKey==='break_bb_upper'?'active':'')+'">'+sortArrow('break_bb_upper')+'</span></th>'+
+    '<th onclick="sortResults(\'chip_concentrated\')">筹码<span class="sort-arrow '+(sortKey==='chip_concentrated'?'active':'')+'">'+sortArrow('chip_concentrated')+'</span></th>'+
+    '<th onclick="sortResults(\'vol_ladder\')">阶梯量<span class="sort-arrow '+(sortKey==='vol_ladder'?'active':'')+'">'+sortArrow('vol_ladder')+'</span></th>'+
+    '<th onclick="sortResults(\'ma_convergence\')">粘合<span class="sort-arrow '+(sortKey==='ma_convergence'?'active':'')+'">'+sortArrow('ma_convergence')+'</span></th>'+
+    '</tr></thead><tbody>';
+
+  for (let ri = 0; ri < data.length; ri++) {
+    const r = data[ri];
+    const chgCls = (r.close_pct||0) >= 0 ? 'up' : 'down';
+    h += '<tr data-ri="'+ri+'" onclick="showDetail('+ri+')" style="cursor:pointer">'+
+      '<td><canvas class="spark" width="60" height="24" data-closes=\''+(r.closes||'[]')+'\'></canvas></td>'+
+      '<td class="gold">'+r.code+'</td>'+
+      '<td>'+r.name+'</td>'+
+      '<td class="tr">'+fmt(r.price,2)+'</td>'+
+      '<td class="tr '+chgCls+'">'+fmt(r.close_pct,2)+'</td>'+
+      '<td class="tr">'+fmtM(r.amount)+'</td>'+
+      '<td class="tr">'+fmtM(r.total_mv)+'</td>'+
+      '<td class="tr">'+r.zt_count+'</td>'+
+      '<td class="tr">'+fmt(r.pullback,1)+'</td>'+
+      '<td class="tr">'+fmt(r.vol_ratio,2)+'</td>'+
+      '<td class="tr">'+fmt(r.rsi6,1)+'</td>'+
+      '<td class="tr">'+fmt(r.amplitude,2)+'</td>'+
+      '<td class="tr">'+(r.up_days||0)+'</td>'+
+      '<td class="tr">'+(r.consecutive_zt||0)+'</td>'+
+      '<td class="tr">'+fmt(r.k,1)+'</td>'+
+      '<td class="tr">'+fmt(r.d,1)+'</td>'+
+      '<td class="'+(r.kd_gold?'pass':'')+'">'+(r.kd_gold?'✅':'❌')+'</td>'+
+      '<td class="'+(r.macd_bull?'pass':'')+'">'+(r.macd_bull?'✅':'❌')+'</td>'+
+      '<td class="'+(r.ma_bull?'pass':'')+'">'+(r.ma_bull?'✅':'❌')+'</td>'+
+      '<td class="'+(r.vol_breakout?'pass':'')+'">'+(r.vol_breakout?'✅':'❌')+'</td>'+
+      '<td class="'+(r.break_bb_upper?'pass':'')+'">'+(r.break_bb_upper?'✅':'❌')+'</td>'+
+      '<td class="'+(r.chip_concentrated?'pass':'')+'">'+(r.chip_concentrated?'✅':'❌')+'</td>'+
+      '<td class="'+(r.vol_ladder?'pass':'')+'">'+(r.vol_ladder?'✅':'❌')+'</td>'+
+      '<td class="'+(r.ma_convergence?'pass':'')+'">'+(r.ma_convergence?'✅':'❌')+'</td>'+
+      '</tr>';
+  }
+  h += '</tbody></table></div>';
+  area.innerHTML = h;
+
+  // 绘制迷你走势线
+  area.querySelectorAll('.spark').forEach(canvas => {
+    try {
+      const prices = JSON.parse(canvas.dataset.closes || '[]');
+      if (prices.length < 2) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h2 = canvas.height;
+      const min = Math.min(...prices), max = Math.max(...prices);
+      const range = Math.max(max - min, 0.001);
+      const upColor = '#ff6b6b', dnColor = '#4ecdc4';
+      const isUp = prices[prices.length-1] >= prices[0];
+      ctx.strokeStyle = isUp ? upColor : dnColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let i = 0; i < prices.length; i++) {
+        const x = (i / (prices.length - 1)) * w;
+        const y = h2 - ((prices[i] - min) / range) * (h2 - 2) - 1;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    } catch(e) { /* skip bad canvas */ }
+  });
+}
+
+detailData = []; // current result list for detail lookup
+
+function showDetail(idx) {
+  const r = detailData[idx];
+  if (!r) return;
+  document.getElementById('modalTitle').textContent = r.name + ' (' + r.code + ')';
+  document.getElementById('modalSub').textContent =
+    '现价 ' + fmt(r.price,2) + ' | 涨幅 ' + fmt(r.close_pct,2) + '% | 成交额 ' + fmtM(r.amount) + ' | 市值 ' + fmtM(r.total_mv);
+
+  // 绘制弹窗K线
+  drawModalKline(r.closes);
+
+  // 生成分节详情
+  let body = '';
+  for (const g of COND_GROUPS) {
+    const items = [];
+    for (const f of g.fields) {
+      const fieldName = f.field || f.id;
+      let val = r[fieldName];
+      if (val === undefined || val === null) continue;
+      if (f.op === 'bool') {
+        items.push({label: f.label, val: val ? '✅' : '❌', cls: val ? 'pass' : 'fail'});
+      } else if (typeof val === 'number') {
+        const unit = f.unit || '';
+        items.push({label: f.label, val: fmt(val, 2) + unit, cls: 'up'});
+      }
+    }
+    if (items.length === 0) continue;
+    body += '<div class="modal-section"><h4>'+g.name+' <span class="badge">'+items.length+'</span></h4><div class="modal-grid">';
+    for (const it of items) {
+      body += '<div class="item"><span>'+it.label+'</span><span class="val '+it.cls+'">'+it.val+'</span></div>';
+    }
+    body += '</div></div>';
+  }
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeDetail() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function drawModalKline(closesStr) {
+  const canvas = document.getElementById('modalKlineCanvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.clientWidth || canvas.parentElement.clientWidth || 560;
+  canvas.width = w;
+  const h2 = canvas.height;
+  const prices = JSON.parse(closesStr || '[]');
+  if (prices.length < 2) return;
+  ctx.clearRect(0, 0, w, h2);
+
+  const min = Math.min(...prices), max = Math.max(...prices), range = Math.max(max - min, 0.001);
+  const pad = 4;
+  const cw = w - pad * 2, ch = h2 - pad * 2;
+  const isUp = prices[prices.length-1] >= prices[0];
+  const lineColor = isUp ? '#ff6b6b' : '#4ecdc4';
+  const fillColor = isUp ? 'rgba(255,107,107,0.08)' : 'rgba(78,205,196,0.08)';
+
+  // 填充渐变
+  ctx.beginPath();
+  for (let i = 0; i < prices.length; i++) {
+    const x = pad + (i / (prices.length - 1)) * cw;
+    const y = pad + ch - ((prices[i] - min) / range) * ch;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  const lastX = pad + cw;
+  ctx.lineTo(lastX, pad + ch);
+  ctx.lineTo(pad, pad + ch);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+
+  // 线
+  ctx.beginPath();
+  for (let i = 0; i < prices.length; i++) {
+    const x = pad + (i / (prices.length - 1)) * cw;
+    const y = pad + ch - ((prices[i] - min) / range) * ch;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 首尾价格标注
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#667';
+  ctx.textAlign = 'left';
+  ctx.fillText(fmt(prices[0],2), pad, pad + ch + 12);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = lineColor;
+  ctx.fillText(fmt(prices[prices.length-1],2), lastX, pad + ch + 12);
+}
+</script>
+</body>
+</html>

@@ -1,9 +1,17 @@
 import requests
 from flask import Flask, render_template, jsonify, request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import time, re, threading, uuid, math, json
+import time, re, threading, uuid, math, json, sys, os, webbrowser
 
-app = Flask(__name__)
+# PyInstaller 打包后模板路径适配
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.dirname(__file__)
+
+app = Flask(__name__,
+            template_folder=os.path.join(base_path, 'templates'),
+            static_folder=os.path.join(base_path, 'static'))
 
 MAX_WORKERS = 30
 SINA_H = {"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"}
@@ -538,4 +546,17 @@ def api_fields():
     })
 
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    import socket
+    port = 5000
+    # 检测端口是否被占，被占则 +1
+    while True:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind(("127.0.0.1", port))
+            s.close()
+            break
+        except:
+            port += 1
+    print(f"🚀 选股器启动于 http://127.0.0.1:{port}")
+    webbrowser.open(f"http://127.0.0.1:{port}")
+    app.run(debug=False, host="127.0.0.1", port=port)

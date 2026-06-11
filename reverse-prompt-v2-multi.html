@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reverse Prompt Studio · Multi-Engine</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+:root {
+  --bg: #f4f5f7; --surface: #fff; --surface-hover: #f9fafb;
+  --border: #e2e4e8; --border-focus: #6366f1;
+  --text: #1a1a2e; --text2: #6b7280; --text3: #9ca3af;
+  --primary: #6366f1; --primary-light: #eef2ff; --primary-dark: #4f46e5;
+  --success: #10b981; --error: #ef4444; --error-bg: #fef2f2;
+  --skeleton: #e5e7eb; --radius: 12px; --radius-sm: 8px; --radius-tag: 20px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+  --transition: 0.2s ease;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.6;
+  -webkit-font-smoothing: antialiased; min-height: 100vh;
+}
+.app { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.header {
+  display: flex; align-items: center; justify-content: space-between; padding: 8px 0 24px;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.logo { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; }
+.logo span { color: var(--primary); }
+.header-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+.badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+  background: var(--primary-light); color: var(--primary); margin-left: 6px;
+  letter-spacing: 0.03em;
+}
+.btn-icon {
+  width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 18px; transition: all var(--transition);
+}
+.btn-icon:hover { border-color: var(--primary); background: var(--primary-light); }
+.main-row { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 16px; }
+@media (max-width: 800px) { .main-row { grid-template-columns: 1fr; } }
+.card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); border: 1px solid var(--border); padding: 20px;
+  transition: box-shadow var(--transition);
+}
+.card:hover { box-shadow: var(--shadow-lg); }
+.card-header {
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.card-header .num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--primary-light); color: var(--primary); font-size: 10px; font-weight: 700;
+}
+
+/* Engine tabs: 5 engines in a row, smaller */
+.engine-tabs { display: flex; gap: 3px; margin-bottom: 12px; flex-wrap: wrap; }
+.engine-tab {
+  flex: 1; min-width: 60px; padding: 6px 4px; text-align: center;
+  font-size: 11px; font-weight: 600;
+  border: 1.5px solid var(--border); border-radius: 6px;
+  background: var(--surface); cursor: pointer; color: var(--text2);
+  transition: all var(--transition); line-height: 1.2;
+}
+.engine-tab .tab-sub { display: block; font-size: 9px; font-weight: 400; opacity: 0.6; }
+.engine-tab.active {
+  border-color: var(--primary); background: var(--primary); color: #fff;
+}
+.engine-tab.active .tab-sub { opacity: 0.8; }
+.engine-tab:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+
+/* Common params grid */
+.param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.param-group { display: flex; flex-direction: column; gap: 4px; }
+.param-group.full { grid-column: 1 / -1; }
+.param-group label { font-size: 11px; font-weight: 500; color: var(--text2); }
+.param-group select, .param-group input, .param-group textarea {
+  padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 6px;
+  font-size: 13px; font-family: inherit; outline: none; background: var(--surface);
+  transition: border var(--transition), box-shadow var(--transition);
+}
+.param-group select:focus, .param-group input:focus, .param-group textarea:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+.param-group textarea { min-height: 50px; resize: vertical; font-size: 12px; }
+
+/* Engine-specific params: separator + sub-grid */
+.engine-section {
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.engine-section .section-label {
+  font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 8px;
+}
+
+/* Stylize slider */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+  background: var(--border); border-radius: 2px; outline: none; padding: 0;
+  border: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--primary); cursor: pointer;
+}
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input[type="range"] { flex: 1; }
+.range-row .range-val { font-size: 13px; font-weight: 600; color: var(--text); min-width: 36px; text-align: right; }
+
+/* Upload zone */
+.upload-zone {
+  position: relative; border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 36px 20px; text-align: center; cursor: pointer; transition: all var(--transition);
+}
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: var(--primary-light); }
+.upload-zone.has-image { padding: 12px; }
+.upload-icon { font-size: 36px; color: var(--text3); margin-bottom: 8px; display: block; }
+.upload-text { color: var(--text2); font-size: 13px; }
+.upload-text strong { color: var(--primary); }
+.upload-hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
+#fileInput { display: none; }
+.preview-wrap { position: relative; display: inline-block; }
+.preview-wrap img { max-height: 180px; border-radius: var(--radius-sm); display: block; }
+.clear-btn {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(0,0,0,0.45); color: #fff; border: none; cursor: pointer;
+  font-size: 14px; line-height: 26px; transition: background 0.15s;
+}
+.clear-btn:hover { background: rgba(0,0,0,0.65); }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 24px; border: none; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: all var(--transition);
+}
+.btn-primary { background: var(--primary); color: #fff; width: 100%; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.35); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+.analyze-area { margin-top: 4px; }
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2.5px solid rgba(255,255,255,0.25); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Status bar */
+.status-bar {
+  display: none; padding: 10px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500; margin-bottom: 12px; animation: fadeIn 0.25s ease;
+}
+.status-bar.show { display: block; }
+.status-bar.error { background: var(--error-bg); color: #b91c1c; border: 1px solid #fecaca; }
+.status-bar.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.status-bar.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+
+/* Feature board */
+.feature-board { display: flex; flex-direction: column; gap: 10px; }
+.feature-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 16px; min-height: 80px;
+  transition: all 0.3s ease;
+}
+.feature-card.card--skeleton { position: relative; overflow: hidden; }
+.feature-card.card--skeleton::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+  background-size: 200% 100%; animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.feature-card-title {
+  font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase;
+  letter-spacing: 0.04em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+}
+.feature-desc { font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 8px; animation: fadeIn 0.4s ease; }
+.skeleton-line { height: 12px; background: var(--skeleton); border-radius: 4px; margin-bottom: 8px; }
+.skeleton-line:last-child { width: 60%; }
+.skeleton-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.skeleton-tag { height: 24px; width: 70px; background: var(--skeleton); border-radius: var(--radius-tag); }
+.tags-row { display: flex; gap: 6px; flex-wrap: wrap; animation: fadeIn 0.4s ease; }
+.visual-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; background: var(--primary-light); border: 1px solid transparent;
+  border-radius: var(--radius-tag); font-size: 12px; cursor: pointer; user-select: none;
+  transition: all 0.15s;
+}
+.visual-tag:hover { border-color: var(--primary); }
+.visual-tag.tag--disabled { opacity: 0.35; text-decoration: line-through; background: #f3f4f6; }
+.tag-close { font-size: 13px; line-height: 1; color: var(--text3); margin-left: 2px; }
+.tag-close:hover { color: var(--error); }
+
+/* Output */
+.output-area { margin-top: 4px; position: relative; }
+.output-textarea {
+  width: 100%; min-height: 120px; padding: 14px;
+  background: #1e1e2e; color: #cdd6f4;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px; line-height: 1.7; resize: vertical;
+  white-space: pre-wrap; word-break: break-word;
+}
+.output-toolbar {
+  display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px;
+}
+.metrics {
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  padding: 4px 12px; border-radius: var(--radius-tag);
+  background: #f3f4f6; transition: all var(--transition);
+}
+.metrics.metric--danger { color: var(--error); background: var(--error-bg); }
+.copy-btn {
+  padding: 6px 16px; font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); cursor: pointer; color: var(--text2);
+  transition: all var(--transition);
+}
+.copy-btn:hover { border-color: var(--primary); color: var(--primary); }
+.copy-btn.copied { background: var(--success); color: #fff; border-color: var(--success); }
+
+/* Settings modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; animation: fadeIn 0.2s ease;
+}
+.modal {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 28px; width: 90%; max-width: 440px; box-shadow: var(--shadow-lg);
+}
+.modal h2 { font-size: 16px; margin-bottom: 18px; }
+.modal .param-group { margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text3); }
+.empty-state .icon { font-size: 40px; margin-bottom: 12px; display: block; }
+.empty-state p { font-size: 14px; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+<div id="app" class="app">
+
+  <!-- ═══ Header ═══ -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">Reverse <span>Prompt</span> Studio</div>
+      <span class="badge">Multi-Engine</span>
+      <div class="header-sub">上传图片 → AI 提取 → 多引擎编译  ·  Upload → Analyze → Compile</div>
+    </div>
+    <button class="btn-icon" @click="showSettings = true" title="API 配置">⚙</button>
+  </header>
+
+  <div class="status-bar" :class="['show', status.type]" v-if="status.text">{{ status.text }}</div>
+
+  <!-- ═══ Main row ═══ -->
+  <div class="main-row">
+    <div class="col">
+
+      <!-- Upload -->
+      <div class="card">
+        <div class="card-header"><span class="num">1</span> 上传图片 <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px;">Upload Image</span></div>
+        <div class="upload-zone"
+             :class="{ 'has-image': state.previewUrl, 'dragover': dragOver }"
+             @click="triggerUpload"
+             @dragover.prevent="dragOver = true"
+             @dragleave="dragOver = false"
+             @drop.prevent="onDrop">
+          <template v-if="!state.previewUrl">
+            <span class="upload-icon">🖼</span>
+            <div class="upload-text">拖入图片或 <strong>点击选择</strong>  ·  Drop or Click</div>
+            <div class="upload-hint">JPG / PNG / WebP · 支持 Ctrl+V 粘贴  ·  Paste from clipboard</div>
+          </template>
+          <template v-else>
+            <div class="preview-wrap">
+              <img :src="state.previewUrl" alt="preview">
+              <button class="clear-btn" @click.stop="clearImage">✕</button>
+            </div>
+          </template>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" @change="onFileSelect">
+      </div>
+
+      <!-- Engine & Params -->
+      <div class="card">
+        <div class="card-header"><span class="num">2</span> 目标引擎 <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px;">Target Engine</span></div>
+
+        <!-- 5 engine tabs -->
+        <div class="engine-tabs">
+          <button class="engine-tab" :class="{ active: state.activeEngine === 'gemini' }"
+                  @click="state.activeEngine = 'gemini'">
+            Gemini <span class="tab-sub">叙事流 Narrative</span>
+          </button>
+          <button class="engine-tab" :class="{ active: state.activeEngine === 'dalle3' }"
+                  @click="state.activeEngine = 'dalle3'">
+            DALL·E 3 <span class="tab-sub">抗扩写 Anti-Expand</span>
+          </button>
+          <button class="engine-tab" :class="{ active: state.activeEngine === 'midjourney' }"
+                  @click="state.activeEngine = 'midjourney'">
+            MJ v6 <span class="tab-sub">参数流 Parameters</span>
+          </button>
+          <button class="engine-tab" :class="{ active: state.activeEngine === 'sd' }"
+                  @click="state.activeEngine = 'sd'">
+            SD XL <span class="tab-sub">权重流 Weights</span>
+          </button>
+          <button class="engine-tab" :class="{ active: state.activeEngine === 'flux' }"
+                  @click="state.activeEngine = 'flux'">
+            Flux <span class="tab-sub">简洁流 Minimal</span>
+          </button>
+        </div>
+
+        <!-- Common params -->
+        <div class="param-grid">
+          <div class="param-group">
+            <label>宽高比 <span style="font-weight:400;color:var(--text3);">Aspect Ratio</span></label>
+            <select v-model="state.userModifications.aspectRatio">
+              <option value="16:9">16:9</option>
+              <option value="4:3">4:3</option>
+              <option value="1:1">1:1</option>
+              <option value="9:16">9:16</option>
+              <option value="3:2">3:2</option>
+              <option value="21:9">21:9</option>
+            </select>
+          </div>
+          <div class="param-group">
+            <label>自定义注入 <span style="font-weight:400;color:var(--text3);">Custom Text</span></label>
+            <input v-model="state.userModifications.userInjectedText" placeholder="可选补充描述...">
+          </div>
+        </div>
+
+        <!-- ─── Engine-specific params ─── -->
+        <!-- Midjourney -->
+        <template v-if="state.activeEngine === 'midjourney'">
+          <div class="engine-section">
+            <div class="section-label">Midjourney <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">专属参数 Parameters</span></div>
+            <div class="param-grid">
+              <div class="param-group">
+                <label>版本 <span style="font-weight:400;color:var(--text3);">Version</span></label>
+                <select v-model="state.engineParams.midjourney.version">
+                  <option value="6">v6</option>
+                  <option value="5.2">v5.2</option>
+                  <option value="niji">niji 6</option>
+                </select>
+              </div>
+              <div class="param-group">
+                <label>风格 <span style="font-weight:400;color:var(--text3);">Style</span></label>
+                <select v-model="state.engineParams.midjourney.style">
+                  <option value="raw">Raw</option>
+                  <option value="expressive">Expressive</option>
+                  <option value="scenic">Scenic</option>
+                </select>
+              </div>
+              <div class="param-group full">
+                <label>Stylize <span style="font-weight:400;color:var(--text3);">风格化</span> (0-1000)</label>
+                <div class="range-row">
+                  <input type="range" min="0" max="1000" step="10"
+                         v-model.number="state.engineParams.midjourney.stylize">
+                  <span class="range-val">{{ state.engineParams.midjourney.stylize }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Stable Diffusion -->
+        <template v-if="state.activeEngine === 'sd'">
+          <div class="engine-section">
+            <div class="section-label">Stable Diffusion <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">专属参数 Parameters</span></div>
+            <div class="param-grid">
+              <div class="param-group">
+                <label>CFG Scale <span style="font-weight:400;color:var(--text3);">引导强度</span> (1-30)</label>
+                <div class="range-row">
+                  <input type="range" min="1" max="30" step="0.5"
+                         v-model.number="state.engineParams.sd.cfgScale">
+                  <span class="range-val">{{ state.engineParams.sd.cfgScale }}</span>
+                </div>
+              </div>
+              <div class="param-group full">
+                <label>负面提示词 <span style="font-weight:400;color:var(--text3);">Negative Prompt</span></label>
+                <textarea v-model="state.engineParams.sd.negativePrompt"
+                          placeholder="blurry, low quality, distorted, text, watermark"></textarea>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Flux -->
+        <template v-if="state.activeEngine === 'flux'">
+          <div class="engine-section">
+            <div class="section-label">Flux <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;">专属参数 Parameters</span></div>
+            <div class="param-grid">
+              <div class="param-group">
+                <label>Guidance <span style="font-weight:400;color:var(--text3);">引导值</span> (1-50)</label>
+                <div class="range-row">
+                  <input type="range" min="1" max="50" step="0.5"
+                         v-model.number="state.engineParams.flux.guidance">
+                  <span class="range-val">{{ state.engineParams.flux.guidance }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Analyze button -->
+      <div class="analyze-area">
+        <button class="btn btn-primary" :disabled="!state.previewUrl || state.isAnalyzing"
+                @click="startAnalysis">
+          <span v-if="state.isAnalyzing" class="spinner"></span>
+          {{ state.isAnalyzing ? 'AI 分析中 Analyzing...' : '🚀 开始分析 Analyze' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ Right column ═══ -->
+    <div class="col">
+
+      <!-- Feature board -->
+      <div class="card" style="padding-bottom: 16px;">
+        <div class="card-header">
+          <span class="num">3</span> 视觉特征拆解 <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px;">Visual Breakdown</span>
+          <button v-if="anyHydrated" class="btn btn-sm btn-ghost" @click="resetTags"
+                  style="margin-left:auto;">重置标签 Reset</button>
+        </div>
+        <div class="feature-board">
+          <div v-if="!state.previewUrl" class="empty-state">
+            <span class="icon">📤</span>
+            <p>先上传图片，AI 分析后将显示 4 个维度的视觉特征卡片</p>
+            <p style="font-size:12px;color:var(--text3);margin-top:4px;">Upload an image, then AI will break it down into 4 visual dimensions</p>
+          </div>
+          <div v-for="key in dimensionKeys" :key="key" v-else
+               class="feature-card"
+               :class="{ 'card--skeleton': !getDim(key).hydrated }">
+            <div class="feature-card-title">
+              {{ cardLabel(key) }}
+              <span style="color:var(--text3);text-transform:none;letter-spacing:0;font-size:10px;">{{ key }}</span>
+            </div>
+            <template v-if="!getDim(key).hydrated">
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-tags">
+                <span class="skeleton-tag"></span>
+                <span class="skeleton-tag"></span>
+                <span class="skeleton-tag"></span>
+              </div>
+            </template>
+            <template v-else>
+              <div class="feature-desc">
+                <div style="margin-bottom:2px;">{{ getDim(key).descriptionCn || getDim(key).description }}</div>
+                <div v-if="getDim(key).descriptionCn" style="font-size:11px;color:var(--text3);">{{ getDim(key).description }}</div>
+              </div>
+              <div class="tags-row">
+                <span v-for="tag in getDim(key).tags" :key="tag.id"
+                      class="visual-tag"
+                      :class="{ 'tag--disabled': !tag.active }"
+                      @click="toggleTag(key, tag.id)">
+                  {{ tag.textCn ? tag.textCn + ' (' + tag.text + ')' : tag.text }}
+                  <span class="tag-close">×</span>
+                </span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <div class="card">
+        <div class="card-header"><span class="num">4</span> 最终提示词输出 <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px;">Final Prompt Output</span></div>
+        <div class="output-area">
+          <textarea class="output-textarea" :value="compiledPrompt" readonly
+                    placeholder="AI 分析完成后，编译后的提示词将显示在这里  ·  Compiled prompt will appear here after analysis..."></textarea>
+          <div class="output-toolbar">
+            <span class="metrics" :class="{ 'metric--danger': metrics.isOversized }">
+              {{ metrics.value }} / {{ metrics.limit }} {{ metrics.unit }}
+              <span v-if="metrics.isOversized"> ⚠️ 超限</span>
+            </span>
+            <button class="copy-btn" :class="{ copied: copySuccess }"
+                    @click="copyPrompt">
+              {{ copySuccess ? '✅ 已复制' : '📋 复制' }}
+            </button>
+          </div>
+          <div v-if="engineNote" style="margin-top:8px;font-size:11px;color:var(--text3);padding:6px 10px;background:#f9fafb;border-radius:6px;">
+            💡 {{ engineNote }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="modal-overlay" v-if="showSettings" @click.self="showSettings = false">
+    <div class="modal">
+      <h2>⚙ API 配置 <span style="font-weight:400;color:var(--text3);font-size:14px;">Settings</span></h2>
+      <div class="param-group">
+        <label>API Endpoint <span style="font-weight:400;color:var(--text3);">接口地址</span></label>
+        <input v-model="settings.endpoint" placeholder="https://api.openai.com/v1">
+      </div>
+      <div class="param-group">
+        <label>Model <span style="font-weight:400;color:var(--text3);">模型</span></label>
+        <input v-model="settings.model" placeholder="gpt-4o-mini">
+      </div>
+      <div class="param-group">
+        <label>API Key <span style="font-weight:400;color:var(--text3);">密钥</span></label>
+        <input v-model="settings.apiKey" type="password" placeholder="sk-..." autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost btn-sm" @click="showSettings = false">取消 Cancel</button>
+        <button class="btn btn-primary btn-sm" @click="saveSettings">保存 Save</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   ProgressiveHydrator
+   ══════════════════════════════════════════════════ */
+class ProgressiveHydrator {
+  constructor(schema, onReady) {
+    this.buffer = '';
+    this.schema = schema;
+    this.ready = new Set();
+    this.onReady = onReady;
+  }
+  append(chunk) {
+    this.buffer += chunk;
+    const jsonStart = this.buffer.indexOf('{');
+    if (jsonStart === -1) return;
+    for (const key of this.schema) {
+      if (this.ready.has(key)) continue;
+      const value = this._extractTopLevelKey(key, this.buffer, jsonStart);
+      if (value !== null) {
+        this.ready.add(key);
+        this.onReady(key, value);
+      }
+    }
+  }
+  reset() { this.buffer = ''; this.ready.clear(); }
+  _isInsideString(buffer, from, pos) {
+    let inString = false, escape = false;
+    for (let i = from; i < pos; i++) {
+      const ch = buffer[i];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') inString = !inString;
+    }
+    return inString;
+  }
+  _extractTopLevelKey(key, buffer, startPos) {
+    const searchKey = `"${key}":`;
+    let searchFrom = startPos;
+    while (true) {
+      const idx = buffer.indexOf(searchKey, searchFrom);
+      if (idx === -1) return null;
+      if (this._isInsideString(buffer, startPos, idx)) {
+        searchFrom = idx + 1; continue;
+      }
+      return this._extractValue(buffer, idx + searchKey.length);
+    }
+  }
+  _extractValue(str, start) {
+    const s = str.slice(start).trimStart();
+    if (s.length === 0) return null;
+    if (s[0] === '"') {
+      for (let i = 1; i < s.length; i++) {
+        if (s[i] === '\\') { i++; continue; }
+        if (s[i] === '"') { try { return JSON.parse(s.slice(0, i+1)); } catch { return null; } }
+      }
+      return null;
+    }
+    if (s[0] === '{' || s[0] === '[') {
+      const open = s[0], close = open === '{' ? '}' : ']';
+      let depth = 0, inString = false, escape = false;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\' && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === open) depth++;
+        if (ch === close) { depth--; if (depth === 0) { try { return JSON.parse(s.slice(0, i+1)); } catch { return null; } } }
+      }
+      return null;
+    }
+    return null;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   PromptCompilers — 5 引擎
+   ══════════════════════════════════════════════════ */
+const PromptCompilers = {
+  gemini: (decon, mods, activeTags) => {
+    const tagBoost = activeTags.length > 0 ? ` Focusing tightly on these key elements: ${activeTags.join(', ')}.` : '';
+    const parts = [
+      decon.subject?.description ? `The scene centers around ${decon.subject.description.toLowerCase()}` : '',
+      decon.composition?.description ? `captured from a ${decon.composition.description.toLowerCase()}` : '',
+      decon.lighting_color?.description ? `steeped in an environment of ${decon.lighting_color.description.toLowerCase()}` : '',
+      decon.style_environment?.description ? `rendered in the definitive aesthetic of ${decon.style_environment.description.toLowerCase()}` : ''
+    ].filter(Boolean).join(', ') + '.';
+    const aspect = mods.aspectRatio ? ` Rendered output must be constrained to a ${mods.aspectRatio} widescreen orientation.` : '';
+    const injection = mods.userInjectedText ? ` Additional modifier: ${mods.userInjectedText}` : '';
+    return `${parts}${tagBoost}${aspect}${injection}`.replace(/\s+/g, ' ').trim();
+  },
+
+  dalle3: (decon, mods, activeTags) => {
+    const aspect = mods.aspectRatio ? ` [Aspect Ratio: ${mods.aspectRatio}]` : '';
+    const injection = mods.userInjectedText ? ` Incorporating: ${mods.userInjectedText}.` : '';
+    const core = `A comprehensive digital vision of ${activeTags.join(', ')}. Details: ${decon.subject?.description || ''} Scene details: ${decon.style_environment?.description || ''} ${decon.lighting_color?.description || ''}`;
+    return `${core}${injection}${aspect}`.replace(/\s+/g, ' ').trim();
+  },
+
+  midjourney: (decon, mods, activeTags, eng) => {
+    const tags = activeTags.join(', ');
+    const style = decon.style_environment?.description?.toLowerCase() || '';
+    const lighting = decon.lighting_color?.description?.toLowerCase() || '';
+    const subj = decon.subject?.description || '';
+    const core = tags.length > 0 ? tags : `${subj}, ${style}`;
+    let ver = eng.version === 'niji' ? '--v 6 --style niji' : `--v ${eng.version}`;
+    let params = `--ar ${mods.aspectRatio} ${ver} --s ${eng.stylize}`;
+    if (eng.style !== 'expressive' && eng.version !== 'niji') params += ` --style ${eng.style}`;
+    const injection = mods.userInjectedText ? ` ${mods.userInjectedText}` : '';
+    return `${core}, ${style}, ${lighting}${injection} ${params}`.replace(/\s+/g, ' ').trim();
+  },
+
+  sd: (decon, mods, activeTags, eng) => {
+    const weights = activeTags.map(t => `(${t}:1.2)`).join(', ');
+    const quality = 'masterpiece, best quality, highly detailed';
+    const subj = decon.subject?.description || '';
+    const style = decon.style_environment?.description || '';
+    const neg = eng.negativePrompt ? `\nNegative prompt: ${eng.negativePrompt}` : '';
+    const cfg = ` --cfg ${eng.cfgScale}`;
+    const aspect = ` --ar ${mods.aspectRatio}`;
+    const core = weights || `${quality}, ${subj}, ${style}`;
+    const injection = mods.userInjectedText ? `, ${mods.userInjectedText}` : '';
+    return `${quality}, ${core}${injection}${cfg}${aspect}${neg}`.trim();
+  },
+
+  flux: (decon, mods, activeTags, eng) => {
+    const raw = [
+      decon.subject?.description,
+      decon.composition?.description,
+      decon.lighting_color?.description,
+      decon.style_environment?.description
+    ].filter(Boolean);
+    const desc = raw.length > 0 ? raw.join('. ') + '.' : '';
+    const tagLine = activeTags.length > 0 ? ` Focus on: ${activeTags.join(', ')}.` : '';
+    const guidance = eng.guidance ? ` [guidance=${eng.guidance}]` : '';
+    const aspect = mods.aspectRatio ? ` [aspect=${mods.aspectRatio.replace(':', '/')}]` : '';
+    const injection = mods.userInjectedText ? ` ${mods.userInjectedText}` : '';
+    return `${desc}${tagLine}${injection}${guidance}${aspect}`.replace(/\s+/g, ' ').trim();
+  }
+};
+
+const SYSTEM_PROMPT = `You are a visual analysis engine. Analyze the image and output ONLY a JSON object with this exact structure:
+{
+  "subject": {
+    "description": "1-2 sentences about the main subject, material, texture (English)",
+    "tags": ["tag1", "tag2", "tag3"],
+    "cn": {
+      "description": "同上内容，用中文描述",
+      "tags": ["中文标签1", "中文标签2"]
+    }
+  },
+  "composition": {
+    "description": "1-2 sentences about framing, lens, perspective, depth (English)",
+    "tags": ["tag1", "tag2", "tag3"],
+    "cn": {
+      "description": "同上内容，用中文描述",
+      "tags": ["中文标签1", "中文标签2"]
+    }
+  },
+  "lighting_color": {
+    "description": "1-2 sentences about lighting setup, color palette, contrast (English)",
+    "tags": ["tag1", "tag2", "tag3"],
+    "cn": {
+      "description": "同上内容，用中文描述",
+      "tags": ["中文标签1", "中文标签2"]
+    }
+  },
+  "style_environment": {
+    "description": "1-2 sentences about medium, style, atmosphere, rendering (English)",
+    "tags": ["tag1", "tag2", "tag3"],
+    "cn": {
+      "description": "同上内容，用中文描述",
+      "tags": ["中文标签1", "中文标签2"]
+    }
+  }
+}
+Requirements:
+- description + tags: in English
+- cn.description + cn.tags: exact Chinese translation of the English content above
+- tags: 2-5 precise professional key terms per dimension
+- Output ONLY valid JSON. No markdown fences, no commentary.`;
+
+/* ══════════════════════════════════════════════════
+   Vue 3 App
+   ══════════════════════════════════════════════════ */
+const { createApp, reactive, computed, ref, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const state = reactive({
+      previewUrl: null,
+      sourceFile: null,
+      isAnalyzing: false,
+      activeEngine: 'gemini',
+      visualDeconstruction: {
+        subject: { description: '', descriptionCn: '', tags: [], hydrated: false },
+        composition: { description: '', descriptionCn: '', tags: [], hydrated: false },
+        lighting_color: { description: '', descriptionCn: '', tags: [], hydrated: false },
+        style_environment: { description: '', descriptionCn: '', tags: [], hydrated: false }
+      },
+      userModifications: { aspectRatio: '16:9', userInjectedText: '' },
+      engineParams: {
+        midjourney: { stylize: 250, version: '6', style: 'raw' },
+        sd: { negativePrompt: '', cfgScale: 7 },
+        flux: { guidance: 3.5 }
+      }
+    });
+
+    const dragOver = ref(false);
+    const showSettings = ref(false);
+    const copySuccess = ref(false);
+    const status = reactive({ text: '', type: '' });
+    const dimensionKeys = ['subject', 'composition', 'lighting_color', 'style_environment'];
+
+    const settings = reactive({ endpoint: '', model: '', apiKey: '' });
+    function loadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('rps_settings') || '{}');
+        settings.endpoint = saved.endpoint || 'https://api.openai.com/v1';
+        settings.model = saved.model || 'gpt-4o-mini';
+        settings.apiKey = saved.apiKey || '';
+      } catch {}
+    }
+    function saveSettings() {
+      localStorage.setItem('rps_settings', JSON.stringify({ ...settings }));
+      showSettings.value = false;
+      setStatus('配置已保存  ·  Settings saved', 'success');
+    }
+    loadSettings();
+
+    let tagIdCounter = 0;
+    const hydrator = new ProgressiveHydrator(dimensionKeys, (key, data) => {
+      const dim = state.visualDeconstruction[key];
+      dim.hydrated = true;
+      dim.description = (data.description || '').replace(/^"|"$/g, '');
+      dim.descriptionCn = (data.cn?.description || '').replace(/^"|"$/g, '');
+      const enTags = (data.tags || []).map(t => typeof t === 'string' ? t.replace(/^"|"$/g, '') : String(t));
+      const cnTags = (data.cn?.tags || []).map(t => typeof t === 'string' ? t.replace(/^"|"$/g, '') : String(t));
+      dim.tags = enTags.map((t, i) => ({
+        id: `${key}_tag_${++tagIdCounter}`,
+        text: t,
+        textCn: cnTags[i] || '',
+        active: true
+      }));
+    });
+
+    const compiledPrompt = computed(() => {
+      const compiler = PromptCompilers[state.activeEngine];
+      const tags = [];
+      Object.values(state.visualDeconstruction).forEach(dim => {
+        dim.tags.forEach(t => { if (t.active) tags.push(t.text); });
+      });
+      const engParams = state.engineParams[state.activeEngine] || {};
+      return compiler(state.visualDeconstruction, state.userModifications, tags, engParams);
+    });
+
+    const metrics = computed(() => {
+      const text = compiledPrompt.value;
+      switch (state.activeEngine) {
+        case 'gemini': {
+          const tokens = Math.ceil(text.split(/\s+/).filter(Boolean).length * 1.35);
+          return { value: tokens, limit: 8192, unit: 'Tokens', isOversized: tokens > 8192 * 0.95 };
+        }
+        case 'dalle3':
+          return { value: text.length, limit: 4000, unit: '字符', isOversized: text.length > 4000 * 0.95 };
+        default:
+          return { value: text.length, limit: '-', unit: '字符', isOversized: false };
+      }
+    });
+
+    const engineNote = computed(() => {
+      switch (state.activeEngine) {
+        case 'midjourney': return 'Midjourney 提示词较短效果更好，长提示会自动截断。推荐 10-20 个关键词。';
+        case 'sd': return 'SD 提示词中 (keyword:1.2) 表示权重。负面提示词在输出中以 Negative prompt: 开头。';
+        case 'flux': return 'Flux 使用自然简洁的提示词，描述比关键词更重要。';
+        default: return '';
+      }
+    });
+
+    const anyHydrated = computed(() =>
+      Object.values(state.visualDeconstruction).some(d => d.hydrated)
+    );
+
+    function getDim(key) { return state.visualDeconstruction[key]; }
+    function cardLabel(key) {
+      const map = { subject: '🎯 主体', composition: '📐 构图', lighting_color: '💡 光影', style_environment: '🎨 风格' };
+      return map[key] || key;
+    }
+
+    function setStatus(msg, type) {
+      status.text = msg; status.type = type;
+      if (type === 'success') setTimeout(() => { status.text = ''; }, 3000);
+    }
+
+    /* Upload */
+    function triggerUpload() { document.getElementById('fileInput').click(); }
+    function onFileSelect(e) { const f = e.target.files[0]; if (f) processFile(f); }
+    function onDrop(e) { dragOver.value = false; const f = e.dataTransfer.files[0]; if (f) processFile(f); }
+    function processFile(file) {
+      if (!file || state.isAnalyzing) return;
+      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+        setStatus('不支持该格式，请上传 JPG / PNG / WebP (Unsupported format)', 'error'); return;
+      }
+      state.sourceFile = file;
+      const r = new FileReader();
+      r.onload = (e) => { state.previewUrl = e.target.result; };
+      r.readAsDataURL(file);
+    }
+    function clearImage() {
+      state.previewUrl = null; state.sourceFile = null; resetAnalysisState();
+    }
+    function resetAnalysisState() {
+      state.isAnalyzing = false;
+      Object.keys(state.visualDeconstruction).forEach(k => {
+        state.visualDeconstruction[k] = { description: '', descriptionCn: '', tags: [], hydrated: false };
+      });
+      hydrator.reset(); tagIdCounter = 0;
+    }
+
+    /* Paste */
+    function handlePaste(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      for (const item of e.clipboardData.items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          processFile(item.getAsFile()); break;
+        }
+      }
+    }
+
+    /* Analysis */
+    async function startAnalysis() {
+      if (!state.sourceFile || state.isAnalyzing) return;
+      resetAnalysisState();
+      state.isAnalyzing = true;
+      setStatus('正在连接 AI 分析服务...  Connecting to AI...', 'info');
+      try {
+        const base64 = await fileToBase64(state.sourceFile);
+        const endpoint = settings.endpoint.replace(/\/+$/, '');
+        const body = {
+          model: settings.model,
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: SYSTEM_PROMPT },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } }
+          ]}],
+          max_tokens: 4096, temperature: 0.3, stream: true
+        };
+        const response = await fetch(endpoint + '/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + settings.apiKey },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          const err = await response.text().catch(() => '');
+          throw new Error(`API 错误 (${response.status}): ${err.slice(0, 200)}`);
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuf = '', fullContent = '', prevLen = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          sseBuf += decoder.decode(value, { stream: true });
+          const lines = sseBuf.split('\n');
+          sseBuf = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const p = JSON.parse(data);
+                fullContent += p.choices?.[0]?.delta?.content || '';
+              } catch {}
+            }
+          }
+          if (fullContent.length > prevLen) {
+            hydrator.append(fullContent.slice(prevLen));
+            prevLen = fullContent.length;
+          }
+        }
+        try {
+          const final = JSON.parse(fullContent.trim().replace(/```json|```/g, ''));
+          Object.keys(final).forEach(k => {
+            if (state.visualDeconstruction[k] && !state.visualDeconstruction[k].hydrated) {
+              const dim = state.visualDeconstruction[k];
+              dim.hydrated = true;
+              dim.description = (final[k].description || '').replace(/^"|"$/g, '');
+              dim.descriptionCn = (final[k].cn?.description || '').replace(/^"|"$/g, '');
+              const en = (final[k].tags || []).map(t => typeof t === 'string' ? t.replace(/^"|"$/g, '') : String(t));
+              const cn = (final[k].cn?.tags || []).map(t => typeof t === 'string' ? t.replace(/^"|"$/g, '') : String(t));
+              dim.tags = en.map((t, i) => ({
+                id: `${k}_tag_${++tagIdCounter}`,
+                text: t, textCn: cn[i] || '',
+                active: true
+              }));
+            }
+          });
+        } catch {}
+        setStatus('✅ 分析完成！可点击标签微调提示词  ·  Complete! Click tags to refine', 'success');
+      } catch (err) {
+        setStatus('❌ ' + err.message, 'error');
+        state.isAnalyzing = false;
+        if (window.location.protocol === 'file:') {
+          setStatus('file:// 协议下浏览器阻止 API 请求。建议部署到 HTTP 服务器或用 localhost。', 'error');
+        }
+      }
+      state.isAnalyzing = false;
+    }
+
+    function toggleTag(dimKey, tagId) {
+      const dim = state.visualDeconstruction[dimKey];
+      const tag = dim.tags.find(t => t.id === tagId);
+      if (tag) tag.active = !tag.active;
+    }
+    function resetTags() {
+      Object.values(state.visualDeconstruction).forEach(dim => dim.tags.forEach(t => { t.active = true; }));
+    }
+    function copyPrompt() {
+      const text = compiledPrompt.value;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        copySuccess.value = true; setTimeout(() => { copySuccess.value = false; }, 2000);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        copySuccess.value = true; setTimeout(() => { copySuccess.value = false; }, 2000);
+      });
+    }
+
+    onMounted(() => { document.addEventListener('paste', handlePaste); });
+
+    return {
+      state, dragOver, showSettings, copySuccess, status, dimensionKeys,
+      settings, compiledPrompt, metrics, engineNote, anyHydrated,
+      getDim, cardLabel, triggerUpload, onFileSelect, onDrop, clearImage,
+      startAnalysis, toggleTag, resetTags, copyPrompt, saveSettings
+    };
+  }
+}).mount('#app');
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = () => { const p = r.result.split(','); if (p.length > 1) resolve(p[1]); else reject(new Error('File conversion failed')); };
+    r.onerror = reject;
+  });
+}
+</script>
+</body>
+</html>

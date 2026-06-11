@@ -253,12 +253,48 @@ input[type="range"]::-webkit-slider-thumb {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Password Gate ── */
+.gate-overlay {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+.gate-box {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 40px; width: 90%; max-width: 360px;
+  box-shadow: var(--shadow-lg); text-align: center;
+}
+.gate-box h1 { font-size: 20px; margin-bottom: 4px; }
+.gate-box .sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+.gate-box input {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 15px; text-align: center;
+  outline: none; transition: border var(--transition);
+}
+.gate-box input:focus { border-color: var(--primary); }
+.gate-box .error { color: var(--error); font-size: 13px; margin-top: 10px; }
+.gate-box .btn { margin-top: 14px; width: 100%; }
 </style>
 </head>
 <body>
 <div id="app" class="app">
 
+  <!-- ═══ 密码门 ═══ -->
+  <div class="gate-overlay" v-if="!authenticated">
+    <div class="gate-box">
+      <h1>🔐 Reverse Prompt Studio</h1>
+      <div class="sub">输入密码访问  ·  Enter password to access</div>
+      <input v-model="passwordInput" type="password" placeholder="请输入密码"
+             @keyup.enter="checkPassword" autofocus>
+      <div class="error" v-if="authError">密码错误  ·  Wrong password</div>
+      <button class="btn btn-primary" @click="checkPassword">验证 Enter</button>
+    </div>
+  </div>
+
+  <!-- ═══ 主界面 ═══ -->
+  <template v-if="authenticated">
   <!-- ═══ Header ═══ -->
+
   <header class="header">
     <div class="header-left">
       <div class="logo">Reverse <span>Prompt</span> Studio</div>
@@ -527,6 +563,8 @@ input[type="range"]::-webkit-slider-thumb {
     </div>
   </div>
 
+</template>
+
 </div>
 
 <script>
@@ -670,6 +708,11 @@ const PromptCompilers = {
   }
 };
 
+/* ══════════════════════════════════════════════════
+   密码保护（改这里的密码）
+   ══════════════════════════════════════════════════ */
+const SITE_PASSWORD = 'Joekuang'; // ← 改成你自己的密码
+
 const SYSTEM_PROMPT = `You are a visual analysis engine. Analyze the image and output ONLY a JSON object with this exact structure:
 {
   "subject": {
@@ -742,6 +785,9 @@ createApp({
     const copySuccess = ref(false);
     const status = reactive({ text: '', type: '' });
     const dimensionKeys = ['subject', 'composition', 'lighting_color', 'style_environment'];
+    const authenticated = ref(false);
+    const passwordInput = ref('');
+    const authError = ref(false);
 
     const settings = reactive({ endpoint: '', model: '', apiKey: '' });
     function loadSettings() {
@@ -959,13 +1005,24 @@ createApp({
       });
     }
 
+    function checkPassword() {
+      if (passwordInput.value === SITE_PASSWORD) {
+        authenticated.value = true;
+        authError.value = false;
+      } else {
+        authError.value = true;
+        passwordInput.value = '';
+      }
+    }
+
     onMounted(() => { document.addEventListener('paste', handlePaste); });
 
     return {
       state, dragOver, showSettings, copySuccess, status, dimensionKeys,
       settings, compiledPrompt, metrics, engineNote, anyHydrated,
+      authenticated, passwordInput, authError,
       getDim, cardLabel, triggerUpload, onFileSelect, onDrop, clearImage,
-      startAnalysis, toggleTag, resetTags, copyPrompt, saveSettings
+      startAnalysis, toggleTag, resetTags, copyPrompt, saveSettings, checkPassword
     };
   }
 }).mount('#app');
